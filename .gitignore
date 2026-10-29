@@ -159,6 +159,15 @@ ENV/
 env.bak/
 venv.bak/
 
+# Dataset files; keep the directory placeholders in version control.
+/data/*
+!/data/.gitkeep
+/src/data/*
+!/src/data/.gitkeep
+
+# macOS
+.DS_Store
+
 # Spyder project settings
 .spyderproject
 .spyproject
