@@ -9,9 +9,12 @@ if (length(script_arg) > 0) {
   script_dir <- "."
 }
 
-train_path <- file.path(script_dir, "..", "data", "train.csv")
+data_dir <- file.path(script_dir, "..", "data")
 # Blank strings count as missing, otherwise Embarked and Cabin hide their gaps.
-train_data <- read.csv(train_path, stringsAsFactors = FALSE, na.strings = c("NA", ""))
+read_data <- function(file_name) {
+  read.csv(file.path(data_dir, file_name), stringsAsFactors = FALSE, na.strings = c("NA", ""))
+}
+train_data <- read_data("train.csv")
 
 # Inspect the data.
 cat("Rows and columns:", nrow(train_data), "x", ncol(train_data), "\n")
@@ -44,11 +47,16 @@ X_validation <- train_data[validation_rows, features, drop = FALSE]
 y_train <- train_data$Survived[training_rows]
 y_validation <- train_data$Survived[validation_rows]
 
+test_data <- read_data("test.csv")
+X_test <- test_data[, features, drop = FALSE]
+test_missing <- colSums(is.na(X_test))
+
 # Impute using values learned from the training set only.
 for (column in numeric_features) {
   median_value <- median(X_train[[column]], na.rm = TRUE)
   X_train[[column]][is.na(X_train[[column]])] <- median_value
   X_validation[[column]][is.na(X_validation[[column]])] <- median_value
+  X_test[[column]][is.na(X_test[[column]])] <- median_value
 }
 
 for (column in categorical_features) {
@@ -57,16 +65,18 @@ for (column in categorical_features) {
 
   X_train[[column]][is.na(X_train[[column]])] <- mode_value
   X_validation[[column]][is.na(X_validation[[column]])] <- mode_value
+  X_test[[column]][is.na(X_test[[column]])] <- mode_value
 
-  # Treat validation categories not seen during training as the mode.
-  unseen <- !X_validation[[column]] %in% observed
-  X_validation[[column]][unseen] <- mode_value
+  # Treat categories not seen during training as the mode.
+  X_validation[[column]][!X_validation[[column]] %in% observed] <- mode_value
+  X_test[[column]][!X_test[[column]] %in% observed] <- mode_value
 
   X_train[[column]] <- factor(X_train[[column]])
   X_validation[[column]] <- factor(
     X_validation[[column]],
     levels = levels(X_train[[column]])
   )
+  X_test[[column]] <- factor(X_test[[column]], levels = levels(X_train[[column]]))
 }
 
 cat("\nCleaning and preparing model features:\n")
@@ -78,14 +88,30 @@ cat("Using Sex and Embarked as categorical predictors; Cabin is excluded.\n")
 model_train <- data.frame(Survived = y_train, X_train)
 model <- glm(Survived ~ ., data = model_train, family = binomial())
 
-validation_predictions <- ifelse(
-  predict(model, newdata = X_validation, type = "response") >= 0.5,
-  1,
-  0
-)
-
-accuracy <- mean(validation_predictions == y_validation)
+predict_survival <- function(new_data) {
+  ifelse(predict(model, newdata = new_data, type = "response") >= 0.5, 1, 0)
+}
 
 cat("\nTraining rows:", nrow(X_train), "\n")
 cat("Validation rows:", nrow(X_validation), "\n")
-cat(sprintf("Validation accuracy: %.3f\n", accuracy))
+cat(sprintf("Training accuracy: %.3f\n", mean(predict_survival(X_train) == y_train)))
+cat(sprintf("Validation accuracy: %.3f\n", mean(predict_survival(X_validation) == y_validation)))
+
+# Predict on the test set, which was imputed above using the training values.
+cat("\nTest rows and columns:", nrow(test_data), "x", ncol(test_data), "\n")
+cat("\nMissing test values by feature:\n")
+print(test_missing)
+cat("Filling missing test values using the medians and most frequent values from the training rows.\n")
+
+test_predictions <- predict_survival(X_test)
+cat("\nPredicted survivors in test set:", sum(test_predictions), "of", length(test_predictions), "\n")
+
+# test.csv has no Survived column, so the closest comparison is Kaggle's sample answers.
+gender_submission <- read_data("gender_submission.csv")
+sample_answers <- gender_submission$Survived[match(test_data$PassengerId, gender_submission$PassengerId)]
+cat("\ntest.csv has no Survived labels, so true test accuracy cannot be measured.\n")
+cat(sprintf(
+  "Test accuracy against gender_submission.csv (Kaggle's sample answers, not true labels): %.3f\n",
+  mean(test_predictions == sample_answers)
+))
+cat("Validation accuracy above is the better estimate of real performance on new passengers.\n")
