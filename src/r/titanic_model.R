@@ -104,14 +104,6 @@ print(test_missing)
 cat("Filling missing test values using the medians and most frequent values from the training rows.\n")
 
 test_predictions <- predict_survival(X_test)
+cat("\nTest set predictions (1 = survived, 0 = did not survive):\n")
+print(data.frame(PassengerId = test_data$PassengerId, Survived = test_predictions), row.names = FALSE)
 cat("\nPredicted survivors in test set:", sum(test_predictions), "of", length(test_predictions), "\n")
-
-# test.csv has no Survived column, so the closest comparison is Kaggle's sample answers.
-gender_submission <- read_data("gender_submission.csv")
-sample_answers <- gender_submission$Survived[match(test_data$PassengerId, gender_submission$PassengerId)]
-cat("\ntest.csv has no Survived labels, so true test accuracy cannot be measured.\n")
-cat(sprintf(
-  "Test accuracy against gender_submission.csv (Kaggle's sample answers, not true labels): %.3f\n",
-  mean(test_predictions == sample_answers)
-))
-cat("Validation accuracy above is the better estimate of real performance on new passengers.\n")

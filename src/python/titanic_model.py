@@ -85,11 +85,6 @@ print(test_data[features].isna().sum())
 print("Filling missing test values using the medians and most frequent values from the training rows.")
 
 test_predictions = model.predict(test_data[features])
+print("\nTest set predictions (1 = survived, 0 = did not survive):")
+print(pd.DataFrame({"PassengerId": test_data["PassengerId"], "Survived": test_predictions}).to_string(index=False))
 print(f"\nPredicted survivors in test set: {test_predictions.sum()} of {len(test_predictions)}")
-
-# test.csv has no Survived column, so the closest comparison is Kaggle's sample answers
-gender_submission = pd.read_csv(data_dir / "gender_submission.csv").set_index("PassengerId")
-sample_answers = gender_submission.loc[test_data["PassengerId"], "Survived"]
-print("\ntest.csv has no Survived labels, so true test accuracy cannot be measured.")
-print(f"Test accuracy against gender_submission.csv (Kaggle's sample answers, not true labels): {accuracy_score(sample_answers, test_predictions):.3f}")
-print("Validation accuracy above is the better estimate of real performance on new passengers.")
